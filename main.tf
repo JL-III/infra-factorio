@@ -1,48 +1,30 @@
-resource "aws_security_group" "factorio_security_group" {
+resource "aws_security_group" "factorio_sg" {
   name        = "factorio-sg"
   description = "Security group for Factorio server"
-  tags = {
-    Name        = "factorio-security-group"
-    Application = "factorio"
-  }
+}
+
+resource "aws_vpc_security_group_egress_rule" "factorio_egress_rule" {
+  security_group_id = aws_security_group.factorio_sg.id
+
+  from_port   = 34197
+  to_port     = 34197
+  ip_protocol = "udp"
+  cidr_ipv4   = "0.0.0.0/0"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "factorio_ingress_rule" {
-  security_group_id = aws_security_group.factorio_security_group.id
+  security_group_id = aws_security_group.factorio_sg.id
 
   cidr_ipv4   = "0.0.0.0/0"
   from_port   = 34197
   ip_protocol = "udp"
   to_port     = 34197
-
-  tags = {
-    Name        = "factorio-ingress-rule"
-    Application = "factorio"
-  }
-}
-
-resource "aws_ebs_volume" "factorio_server_storage" {
-  availability_zone = "us-east-1a"
-  size              = 8
-  type              = "gp3"
-
-  tags = {
-    Name        = "factorio-server-storage"
-    Application = "factorio"
-  }
-}
-
-resource "aws_volume_attachment" "ebs_attachment" {
-  device_name = "/dev/sdh"
-  volume_id   = aws_ebs_volume.factorio_server_storage.id
-  instance_id = aws_instance.factorio_server.id
 }
 
 resource "aws_instance" "factorio_server" {
   ami                         = "ami-0182f373e66f89c85"
   instance_type               = "t3.micro"
-  availability_zone           = "us-east-1a"
-  security_groups             = [aws_security_group.factorio_security_group.name]
+  security_groups             = [aws_security_group.factorio_sg.name]
   associate_public_ip_address = true
 
   user_data = <<-EOF
@@ -77,12 +59,7 @@ resource "aws_instance" "factorio_server" {
               WantedBy=multi-user.target" > /etc/systemd/system/factorio.service
 
               # Create a save directory and generate a new map
-              su - factorio -c "
-              mkdir -p /home/factorio/factorio/saves
-              if [ ! -f /home/factorio/factorio/saves/my-save.zip ]; then
-                /home/factorio/factorio/bin/x64/factorio --create /home/factorio/factorio/saves/my-save.zip
-              fi
-              "
+              su - factorio -c "/home/factorio/factorio/bin/x64/factorio --create /home/factorio/factorio/saves/my-save.zip"
 
               # Start and enable the Factorio service
               systemctl daemon-reload
@@ -91,7 +68,6 @@ resource "aws_instance" "factorio_server" {
               EOF
 
   tags = {
-    Name        = "factorio-server"
-    Application = "factorio"
+    Name = "factorio-server"
   }
 }
